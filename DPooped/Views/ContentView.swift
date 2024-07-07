@@ -1,61 +1,34 @@
-//
-//  ContentView.swift
-//  DPooped
-//
-//  Created by Halik on 03.07.2024.
-//
-
 import SwiftUI
 import SwiftData
 
 struct ContentView: View {
-    @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
-
+    @StateObject private var authService = AuthenticationService()
+    
     var body: some View {
-        NavigationSplitView {
-            List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+        TabView {
+            if authService.isAuthenticated {
+                ProfileView()
+                    .environmentObject(authService)
+                    .tabItem {
+                        Label("Profile", systemImage: "person")
                     }
-                }
-                .onDelete(perform: deleteItems)
-            }
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    EditButton()
-                }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                
+                DogListView()
+                    .tabItem {
+                        Label("My Dogs", systemImage: "pawprint")
                     }
-                }
-            }
-        } detail: {
-            Text("Select an item")
-        }
-    }
-
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
-    }
-
-    private func deleteItems(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                modelContext.delete(items[index])
+                
+                Text("Walks")
+                    .tabItem {
+                        Label("Walks", systemImage: "figure.walk")
+                    }
+            } else {
+                ProfileView()
+                    .environmentObject(authService)
+                    .tabItem {
+                        Label("Sign In", systemImage: "person")
+                    }
             }
         }
     }
-}
-
-#Preview {
-    ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
 }
