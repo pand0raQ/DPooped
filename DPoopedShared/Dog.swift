@@ -3,7 +3,7 @@ import SwiftData
 
 @Model
 public final class Dog {
-    @Attribute(.unique) public var id: UUID?
+    public var id: UUID?
     public var name: String?
     public var imageData: Data?
     @Relationship(inverse: \UserProfile.ownedDogs) public var owner: UserProfile?
@@ -11,7 +11,7 @@ public final class Dog {
     @Relationship(inverse: \Walk.dog) public var walks: [Walk]?
     public var cloudKitRecordID: String?
     
-    public init(id: UUID = UUID(), name: String, imageData: Data? = nil) {
+    public init(id: UUID? = UUID(), name: String? = nil, imageData: Data? = nil) {
         self.id = id
         self.name = name
         self.imageData = imageData

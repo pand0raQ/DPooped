@@ -8,7 +8,7 @@ struct DogListView: View {
     @State private var isAddingDog = false
     @State private var selectedDog: Dog?
     @State private var isLoggingWalk = false
-    
+
     var body: some View {
         NavigationView {
             List {
@@ -22,6 +22,11 @@ struct DogListView: View {
                             isLoggingWalk = true
                         }
                         .tint(.blue)
+                        
+                        Button("Delete") {
+                            deleteDog(dog)
+                        }
+                        .tint(.red)
                     }
                 }
                 .onDelete(perform: deleteDogs)
@@ -49,41 +54,30 @@ struct DogListView: View {
         }
     }
     
-    private func deleteDogs(offsets: IndexSet) {
-        withAnimation {
-            for index in offsets {
-                let dogToDelete = dogs[index]
-                modelContext.delete(dogToDelete)
-                if let cloudKitRecordID = dogToDelete.cloudKitRecordID {
-                    CloudKitService.shared.deleteDog(withRecordID: cloudKitRecordID) { result in
-                        switch result {
-                        case .success:
-                            print("Dog deleted from CloudKit")
-                        case .failure(let error):
-                            print("Failed to delete dog from CloudKit: \(error.localizedDescription)")
-                        }
+    private func deleteDog(_ dog: Dog) {
+        CloudKitService.shared.deleteDog(dog) { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success:
+                    print("Dog deleted from CloudKit successfully")
+                    modelContext.delete(dog)
+                    do {
+                        try modelContext.save()
+                    } catch {
+                        print("Failed to delete dog from local storage: \(error)")
                     }
+                case .failure(let error):
+                    print("Failed to delete dog from CloudKit: \(error)")
+                    // You might want to show an alert to the user here
                 }
             }
         }
     }
-}
-struct DogRow: View {
-    let dog: Dog
     
-    var body: some View {
-        HStack {
-            if let imageData = dog.imageData, let uiImage = UIImage(data: imageData) {
-                Image(uiImage: uiImage)
-                    .resizable()
-                    .frame(width: 50, height: 50)
-                    .clipShape(Circle())
-            } else {
-                Image(systemName: "pawprint.circle.fill")
-                    .resizable()
-                    .frame(width: 50, height: 50)
-            }
-            Text(dog.name)
+    private func deleteDogs(offsets: IndexSet) {
+        for index in offsets {
+            let dogToDelete = dogs[index]
+            deleteDog(dogToDelete)
         }
     }
 }

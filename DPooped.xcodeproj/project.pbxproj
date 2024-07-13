@@ -38,6 +38,7 @@
 		156175062C397A44005227EA /* DPoopedShared.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 156174DE2C3978A0005227EA /* DPoopedShared.framework */; };
 		156175072C397A44005227EA /* DPoopedShared.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 156174DE2C3978A0005227EA /* DPoopedShared.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		1561750C2C397EC2005227EA /* SharedIntents.swift  .swift in Sources */ = {isa = PBXBuildFile; fileRef = 1561750B2C397EC2005227EA /* SharedIntents.swift  .swift */; };
+		15A349AE2C42D32900BBBFF5 /* DogRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15A349AC2C42D28A00BBBFF5 /* DogRow.swift */; };
 		15AA122E2C39B54A00C7D5AC /* DogCoParentingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15AA122D2C39B54A00C7D5AC /* DogCoParentingView.swift */; };
 		15AA122F2C39B6E600C7D5AC /* UserProfile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B6A9112C35E19E00710D78 /* UserProfile.swift */; };
 		15B6A8FB2C35E0C300710D78 /* DPoopedApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15B6A8FA2C35E0C300710D78 /* DPoopedApp.swift */; };
@@ -181,6 +182,7 @@
 		156174E72C3978A1005227EA /* DPoopedSharedTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DPoopedSharedTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		156174EE2C3978A1005227EA /* DPoopedSharedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DPoopedSharedTests.swift; sourceTree = "<group>"; };
 		1561750B2C397EC2005227EA /* SharedIntents.swift  .swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SharedIntents.swift  .swift"; sourceTree = "<group>"; };
+		15A349AC2C42D28A00BBBFF5 /* DogRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DogRow.swift; sourceTree = "<group>"; };
 		15AA122D2C39B54A00C7D5AC /* DogCoParentingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DogCoParentingView.swift; sourceTree = "<group>"; };
 		15B6A8F72C35E0C300710D78 /* DPooped.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DPooped.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		15B6A8FA2C35E0C300710D78 /* DPoopedApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DPoopedApp.swift; sourceTree = "<group>"; };
@@ -390,6 +392,7 @@
 		15B6A90E2C35E14B00710D78 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
+				15A349AC2C42D28A00BBBFF5 /* DogRow.swift */,
 				15B6A9202C35E35E00710D78 /* AppViewModel.swift */,
 				15B6A92B2C35EF0800710D78 /* ProfileViewModel.swift */,
 			);
@@ -689,6 +692,7 @@
 				155A39AF2C3ABF2D00B7B3F7 /* SyncService.swift  .swift in Sources */,
 				15B6A91E2C35E33600710D78 /* WalkLogView.swift in Sources */,
 				15B6A9272C35E38B00710D78 /* Date+Extensions.swift in Sources */,
+				15A349AE2C42D32900BBBFF5 /* DogRow.swift in Sources */,
 				15AA122E2C39B54A00C7D5AC /* DogCoParentingView.swift in Sources */,
 				15B6A9212C35E35E00710D78 /* AppViewModel.swift in Sources */,
 				15B6A91C2C35E31E00710D78 /* DogRegistrationView.swift in Sources */,

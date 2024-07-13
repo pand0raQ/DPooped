@@ -10,7 +10,7 @@ class CloudKitService {
     private let privateDatabase: CKDatabase
     
     private init() {
-        container = CKContainer(identifier: "iCloud.com.yourcompany.DPooped")
+        container = CKContainer(identifier: "iCloud.com.yourcompany.DPooped") // Replace with your container identifier
         publicDatabase = container.publicCloudDatabase
         privateDatabase = container.privateCloudDatabase
     }
@@ -21,20 +21,28 @@ class CloudKitService {
         let record: CKRecord
         if let recordID = dog.cloudKitRecordID.flatMap({ CKRecord.ID(recordName: $0) }) {
             record = CKRecord(recordType: "Dog", recordID: recordID)
+        } else if let id = dog.id {
+            record = CKRecord(recordType: "Dog", recordID: CKRecord.ID(recordName: id.uuidString))
         } else {
-            record = CKRecord(recordType: "Dog")
+            completion(.failure(NSError(domain: "DPoopedErrorDomain", code: 0, userInfo: [NSLocalizedDescriptionKey: "Dog ID is missing"])))
+            return
         }
         
+        if let id = dog.id {
+            record["id"] = id.uuidString
+        }
         record["name"] = dog.name
         record["imageData"] = dog.imageData
         if let ownerID = dog.owner?.cloudKitRecordID {
             record["owner"] = CKRecord.Reference(recordID: CKRecord.ID(recordName: ownerID), action: .none)
         }
         
-        let coParentReferences = dog.coParents.compactMap { coParent in
+        let coParentReferences = dog.coParents?.compactMap { coParent in
             coParent.cloudKitRecordID.flatMap { CKRecord.Reference(recordID: CKRecord.ID(recordName: $0), action: .none) }
+        } ?? []
+        if !coParentReferences.isEmpty {
+            record["coParents"] = coParentReferences
         }
-        record["coParents"] = coParentReferences
         
         publicDatabase.save(record) { (savedRecord, error) in
             if let error = error {
@@ -61,9 +69,22 @@ class CloudKitService {
             }
             
             let dogs = records.compactMap { record -> Dog? in
-                guard let name = record["name"] as? String else { return nil }
-                let dog = Dog(name: name, imageData: record["imageData"] as? Data)
+                guard let idString = record["id"] as? String,
+                      let id = UUID(uuidString: idString),
+                      let name = record["name"] as? String else {
+                    return nil
+                }
+                let dog = Dog(id: id, name: name, imageData: record["imageData"] as? Data)
                 dog.cloudKitRecordID = record.recordID.recordName
+                
+                if let ownerReference = record["owner"] as? CKRecord.Reference {
+                    dog.owner = self.fetchOrCreateUser(withRecordID: ownerReference.recordID)
+                }
+                
+                if let coParentReferences = record["coParents"] as? [CKRecord.Reference] {
+                    dog.coParents = coParentReferences.compactMap { self.fetchOrCreateUser(withRecordID: $0.recordID) }
+                }
+                
                 return dog
             }
             
@@ -71,45 +92,97 @@ class CloudKitService {
         }
     }
     
-    func deleteDog(withRecordID recordID: String, completion: @escaping (Result<Void, Error>) -> Void) {
-        let recordID = CKRecord.ID(recordName: recordID)
-        publicDatabase.delete(withRecordID: recordID) { (recordID, error) in
-            if let error = error {
-                completion(.failure(error))
-            } else {
-                completion(.success(()))
+    func deleteDog(_ dog: Dog, completion: @escaping (Result<Void, Error>) -> Void) {
+            guard let cloudKitRecordID = dog.cloudKitRecordID else {
+                completion(.failure(NSError(domain: "DPoopedErrorDomain", code: 0, userInfo: [NSLocalizedDescriptionKey: "Dog has no CloudKit record ID"])))
+                return
             }
-        }
-    }
-    
-    // MARK: - Walk Operations
-    
-    func saveWalk(_ walk: Walk, completion: @escaping (Result<CKRecord.ID, Error>) -> Void) {
-            let record: CKRecord
-            if let recordID = walk.cloudKitRecordID.flatMap({ CKRecord.ID(recordName: $0) }) {
-                record = CKRecord(recordType: "Walk", recordID: recordID)
-            } else {
-                record = CKRecord(recordType: "Walk")
-            }
-            
-            record["date"] = walk.date
-            record["duration"] = walk.duration
-            record["hadRelief"] = walk.hadRelief
-            if let dogID = walk.dog?.cloudKitRecordID {
-                record["dog"] = CKRecord.Reference(recordID: CKRecord.ID(recordName: dogID), action: .deleteSelf)
-            }
-            
-            publicDatabase.save(record) { (savedRecord, error) in
+
+            let recordID = CKRecord.ID(recordName: cloudKitRecordID)
+            publicDatabase.delete(withRecordID: recordID) { (_, error) in
                 if let error = error {
                     completion(.failure(error))
-                } else if let savedRecord = savedRecord {
-                    completion(.success(savedRecord.recordID))
+                } else {
+                    completion(.success(()))
+                }
+            }
+        }
+    func deleteAllData(completion: @escaping (Result<Void, Error>) -> Void) {
+            let recordTypes = ["Dog", "Walk", "UserProfile"] // Add any other record types you have
+            let dispatchGroup = DispatchGroup()
+            var errors: [Error] = []
+
+            for recordType in recordTypes {
+                dispatchGroup.enter()
+                let query = CKQuery(recordType: recordType, predicate: NSPredicate(value: true))
+                let operation = CKQueryOperation(query: query)
+                operation.recordMatchedBlock = { (recordID, _) in
+                    self.publicDatabase.delete(withRecordID: recordID) { (_, error) in
+                        if let error = error {
+                            errors.append(error)
+                        }
+                    }
+                }
+                operation.queryResultBlock = { _ in
+                    dispatchGroup.leave()
+                }
+                publicDatabase.add(operation)
+            }
+
+            dispatchGroup.notify(queue: .main) {
+                if errors.isEmpty {
+                    completion(.success(()))
+                } else {
+                    let error = NSError(domain: "CloudKitDeleteAllError", code: 0, userInfo: [NSLocalizedDescriptionKey: "Failed to delete all records"])
+                    completion(.failure(error))
                 }
             }
         }
     
+
+
+    // MARK: - Walk Operations
+    
+    func saveWalk(_ walk: Walk, completion: @escaping (Result<CKRecord.ID, Error>) -> Void) {
+        let record: CKRecord
+        if let recordID = walk.cloudKitRecordID.flatMap({ CKRecord.ID(recordName: $0) }) {
+            record = CKRecord(recordType: "Walk", recordID: recordID)
+        } else if let id = walk.id {
+            record = CKRecord(recordType: "Walk", recordID: CKRecord.ID(recordName: id.uuidString))
+        } else {
+            completion(.failure(NSError(domain: "DPoopedErrorDomain", code: 0, userInfo: [NSLocalizedDescriptionKey: "Walk ID is missing"])))
+            return
+        }
+        
+        if let id = walk.id {
+            record["id"] = id.uuidString
+        }
+        record["date"] = walk.date
+        record["duration"] = walk.duration
+        record["hadRelief"] = walk.hadRelief
+        if let dogID = walk.dog?.cloudKitRecordID {
+            record["dog"] = CKRecord.Reference(recordID: CKRecord.ID(recordName: dogID), action: .deleteSelf)
+        }
+        if let dogId = walk.dogId {
+            record["dogId"] = dogId.uuidString
+        }
+        
+        publicDatabase.save(record) { (savedRecord, error) in
+            if let error = error {
+                completion(.failure(error))
+            } else if let savedRecord = savedRecord {
+                walk.cloudKitRecordID = savedRecord.recordID.recordName
+                completion(.success(savedRecord.recordID))
+            }
+        }
+    }
+    
     func fetchWalks(for dog: Dog, completion: @escaping (Result<[Walk], Error>) -> Void) {
-        let predicate = NSPredicate(format: "dogId == %@", dog.id.uuidString)
+        guard let dogId = dog.id else {
+            completion(.failure(NSError(domain: "DPoopedErrorDomain", code: 0, userInfo: [NSLocalizedDescriptionKey: "Dog ID is missing"])))
+            return
+        }
+        let predicate = NSPredicate(format: "dogId == %@", dogId.uuidString)
         let query = CKQuery(recordType: "Walk", predicate: predicate)
         query.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         
@@ -125,12 +198,14 @@ class CloudKitService {
             }
             
             let walks = records.compactMap { record -> Walk? in
-                guard let date = record["date"] as? Date,
+                guard let idString = record["id"] as? String,
+                      let id = UUID(uuidString: idString),
+                      let date = record["date"] as? Date,
                       let duration = record["duration"] as? TimeInterval,
                       let hadRelief = record["hadRelief"] as? Bool else {
                     return nil
                 }
-                let walk = Walk(date: date, duration: duration, hadRelief: hadRelief, dog: dog)
+                let walk = Walk(id: id, date: date, duration: duration, hadRelief: hadRelief, dog: dog)
                 walk.cloudKitRecordID = record.recordID.recordName
                 walk.dogId = dog.id
                 return walk
@@ -139,17 +214,21 @@ class CloudKitService {
             completion(.success(walks))
         }
     }
-    
+
     // MARK: - User Operations
     
     func saveUser(_ user: UserProfile, completion: @escaping (Result<CKRecord.ID, Error>) -> Void) {
         let record: CKRecord
         if let recordID = user.cloudKitRecordID.flatMap({ CKRecord.ID(recordName: $0) }) {
             record = CKRecord(recordType: "UserProfile", recordID: recordID)
+        } else if let id = user.id {
+            record = CKRecord(recordType: "UserProfile", recordID: CKRecord.ID(recordName: id))
         } else {
-            record = CKRecord(recordType: "UserProfile", recordID: CKRecord.ID(recordName: user.id))
+            completion(.failure(NSError(domain: "DPoopedErrorDomain", code: 0, userInfo: [NSLocalizedDescriptionKey: "User ID is missing"])))
+            return
         }
         
+        record["id"] = user.id
         record["name"] = user.name
         record["email"] = user.email
         
@@ -178,11 +257,13 @@ class CloudKitService {
             }
             
             let users = records.compactMap { record -> UserProfile? in
-                guard let name = record["name"] as? String,
+                guard let id = record["id"] as? String,
+                      let name = record["name"] as? String,
                       let email = record["email"] as? String else {
                     return nil
                 }
-                let user = UserProfile(id: record.recordID.recordName, name: name, email: email)
+                
+                let user = UserProfile(id: id, name: name, email: email)
                 user.cloudKitRecordID = record.recordID.recordName
                 return user
             }
@@ -205,14 +286,21 @@ class CloudKitService {
         walkSubscription.notificationInfo = notificationInfo
         userSubscription.notificationInfo = notificationInfo
         
-        let operations = [
-            CKModifySubscriptionsOperation(subscriptionsToSave: [dogSubscription, walkSubscription, userSubscription], subscriptionIDsToDelete: nil)
-        ]
+        let operation = CKModifySubscriptionsOperation(subscriptionsToSave: [dogSubscription, walkSubscription, userSubscription], subscriptionIDsToDelete: [])
+        operation.qualityOfService = .utility
         
-        operations.first?.modifySubscriptionsCompletionBlock = { _, _, error in
+        operation.modifySubscriptionsCompletionBlock = { savedSubscriptions, deletedSubscriptionIDs, error in
             completion(error)
         }
         
-        operations.forEach { publicDatabase.add($0) }
+        privateDatabase.add(operation)
+    }
+    
+    // MARK: - Helper Functions
+    
+    private func fetchOrCreateUser(withRecordID recordID: CKRecord.ID) -> UserProfile {
+        // This is a placeholder implementation. In a real app, you'd want to fetch from your local database
+        // and create a new user if necessary. For now, we'll just create a new user with minimal info.
+        return UserProfile(id: recordID.recordName, name: "Unknown", email: "")
     }
 }
